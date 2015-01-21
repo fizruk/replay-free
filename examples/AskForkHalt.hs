@@ -1,6 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Main where
 
 import Control.Applicative
@@ -12,6 +14,9 @@ import Control.Replay.Class
 
 import Control.Concurrent
 import Control.Concurrent.STM
+
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 
 -- | This is our base functor, which describes the list of actions.
 data F a
@@ -27,13 +32,17 @@ data F' a
   | Fork' a (ThreadId, a)   -- ^ Recorded child ThreadId.
   | Halt'                   -- ^ We don't record anything for halt.
   | Save'                   -- ^ Here we paused our computation to collect the log.
-  deriving (Show, Functor)
+  deriving (Show, Functor, Foldable, Traversable)
 
 instance Replay F F' where
   replay k (Ask f) (Ask' (s, x)) = (\y -> Ask' (s, y)) <$> k (f s) x
   replay k (Fork c p) (Fork' c' (pid, p')) = Fork' <$> k c c' <*> ((,) pid <$> k (p pid) p')
   replay _ Halt Halt' = pure Halt'
   replay _ _ _ = empty
+
+  restore (Ask' (_, x)) = Ask (const x)
+  restore (Fork' c (_, p)) = Fork c (const p)
+  restore Halt' = Halt
 
 -- DSL commands for F functor
 --
