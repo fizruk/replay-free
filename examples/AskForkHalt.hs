@@ -4,9 +4,10 @@
 module Main where
 
 import Control.Applicative
+import Control.Monad.Free (Free)
 import Control.Monad.Free.Class
 import Control.Monad.Trans
-import Control.Monad.Trans.Free (iterT)
+import Control.Monad.Trans.Free (FreeT, iterT)
 import Control.Monad.Trans.Free.Replay
 import Control.Replay.Class
 
@@ -125,6 +126,7 @@ main = do
       -- we ignore unmatched logTree subtrees
       replayed'  = fmap (recordFreeT recordF . fst) replayed
       -- attach computations at leaves to the computation tree
+      replayed'' :: FreeT F' IO (Free F' ())
       replayed'' = do
         m <- replayed'
         lift $ do
