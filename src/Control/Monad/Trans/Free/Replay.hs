@@ -3,6 +3,7 @@ module Control.Monad.Trans.Free.Replay where
 
 import Control.Replay.Class
 
+import Control.Monad
 import Control.Monad.Trans.Class
 import Control.Monad.Free.Class
 import qualified Control.Monad.Trans.Free as FT
@@ -27,15 +28,13 @@ replayFreeT (FT.FreeT m) r@(F.Free g) = do
 
 -- | Run @FreeT f m a@ computation and record actions.
 -- The result is a @FreeT g m a@ computation.
---
--- This function is analogous to 'iterT'.
-recordFreeT :: (Functor f, Functor g, Monad m)
+recordFreeT :: (Functor f, Functor g, Monad m, MonadFree g n)
             => (forall x. f (m x) -> m (g x))   -- ^ How to record each layer of computation.
             -> FT.FreeT f m a                   -- ^ Computation to record.
-            -> m (F.Free g a)                   -- ^ The computation log tree.
+            -> m (n a)                          -- ^ The computation log tree.
 recordFreeT mapF (FT.FreeT m) = do
   f <- m
   case fmap (recordFreeT mapF) f of
     FT.Pure x -> return (return x)
-    FT.Free g -> mapF g >>= return . wrap
+    FT.Free g -> wrap `liftM` mapF g
 
