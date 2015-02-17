@@ -27,7 +27,7 @@ replayApT (FT.ApT m) r@(F.Ap y g) = FT.ApT (replayApF <$> m)
               Just k  -> right k
 
 -- | Run @ApT f g a@ computation and record actions.
-recordApT :: (Functor f, Functor g, Functor h, Applicative m)
+recordApT :: (Functor g, Applicative m)
           => (forall x. f x -> m (h x))     -- ^ How to run and record each particular action.
           -> (forall x. g (m x) -> m x)     -- ^ @g . m ~ m@ natural transformation.
           -> FT.ApT f g a                   -- ^ Computation to record.
