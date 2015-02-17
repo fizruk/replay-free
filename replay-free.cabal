@@ -20,6 +20,7 @@ Library
   Exposed-Modules:
     Control.Replay.Class
     Control.Monad.Trans.Free.Replay
+    Control.Applicative.Trans.Free.Replay
   Build-Depends:        base >= 4 && < 5
                       , free >= 4.2
                       , transformers >= 0.3
