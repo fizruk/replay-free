@@ -4,36 +4,41 @@ module Control.Applicative.Trans.Free.Replay where
 import Control.Replay.Class
 
 import Control.Applicative
-import qualified Control.Applicative.Trans.Free as FT
-import qualified Control.Applicative.Free as F
+import Control.Applicative.Trans.Free
 
 import Data.Functor.Coproduct
 
--- | Replay @ApT f m@ computation given @Ap g@ computation log tree.
--- The result is new @ApT (Coproduct f g) m@ computation with @f@s
--- replaced by @g@s where log matches actual computation.
-replayApT :: (Replay f g, Functor m)
-          => FT.ApT f m a                 -- ^ The computation to replay.
-          -> F.Ap g b                     -- ^ The log tree.
-          -> FT.ApT (Coproduct f g) m a
-replayApT ft r@(F.Pure _) = FT.hoistApT left ft
-replayApT (FT.ApT m) r@(F.Ap y g) = FT.ApT (replayApF <$> m)
-  where
-    replayApF (FT.Pure x) = FT.Pure x
-    replayApF (FT.Ap x f) = FT.Ap z (replayApT f g)
-      where
-        z = case replay (\x y -> Just x) x y of
-              Nothing -> left x
-              Just k  -> right k
+-- | Replay computation given log structure.
+replayApT :: (Replay f g, Applicative m)
+          => ApT f m a                -- ^ The computation to replay.
+          -> ApT g m b                -- ^ The log.
+          -> ApT (Coproduct f g) m a  -- ^ Replayed computation with @f@s replaced by @g@s where log matches.
+replayApT (ApT m) (ApT n) = ApT (liftA2 replayApF m n)
+
+-- | Replay @ApF@ computation given log structure.
+replayApF :: (Replay f g, Applicative m)
+          => ApF f m a                -- ^ The computation to replay.
+          -> ApF g m b                -- ^ The log.
+          -> ApF (Coproduct f g) m a  -- ^ Replay computation with @f@s replaced by @g@s where log matches.
+replayApF (Ap x f) (Ap y g)
+  | Just z <- replay (\a b -> Just a) x y
+  = right z `Ap` replayApT f g
+replayApF f _ = hoistApF left f
 
 -- | Run @ApT f g a@ computation and record actions.
 recordApT :: (Functor g, Applicative m)
-          => (forall x. f x -> m (h x))     -- ^ How to run and record each particular action.
-          -> (forall x. g (m x) -> m x)     -- ^ @g . m ~ m@ natural transformation.
-          -> FT.ApT f g a                   -- ^ Computation to record.
-          -> m (F.Ap h a)                   -- ^ The computation log wrapped in a @m@ computation.
-recordApT f g (FT.ApT k) = g (recordApF <$> k)
-  where
-    recordApF (FT.Pure x) = pure (pure x)
-    recordApF (FT.Ap x y) = (\a b -> F.liftAp a <**> b) <$> f x <*> recordApT f g y
+          => (forall x. f x -> m (h x))   -- ^ How to run and record each particular action.
+          -> (forall x. g (m x) -> m x)   -- ^ @g . m ~ m@ natural transformation.
+          -> ApT f g a                    -- ^ Computation to record.
+          -> ApT h m a                    -- ^ The computation log wrapped in a @m@ computation.
+recordApT f g (ApT k) = ApT (g (recordApF f g <$> k))
+
+-- | Run @ApF f g a@ computation and record actions.
+recordApF :: (Functor g, Applicative m)
+          => (forall x. f x -> m (h x))   -- ^ How to run and record each particular action.
+          -> (forall x. g (m x) -> m x)   -- ^ @g . m ~ m@ natural transformation.
+          -> ApF f g a                    -- ^ Computation to record.
+          -> m (ApF h m a)                -- ^ The computation log wrapped in a @m@ computation.
+recordApF _ _ (Pure x) = pure (pure x)
+recordApF f g (Ap x y) = Ap <$> f x <*> pure (recordApT f g y)
 
