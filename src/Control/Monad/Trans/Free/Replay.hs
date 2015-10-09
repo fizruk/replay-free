@@ -22,7 +22,7 @@ replayFreeT (FT.FreeT m) r@(F.Free g) = do
   case f of
     FT.Pure x -> return (return x, r)
     FT.Free h ->
-      case replay (\x y -> Just (x, y)) h g of
+      case replay (curry Just) h g of
         Nothing -> return (wrap h, r)
         Just k -> wrap $ fmap (uncurry replayFreeT) k
 
