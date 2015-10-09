@@ -66,11 +66,11 @@ instance GReplay Par1 Par1 where
 instance Replay f g => GReplay (Rec1 f) (Rec1 g) where
   greplay f (Rec1 x) (Rec1 y) = Rec1 <$> replay f x y
 
-instance Eq a => GReplay (K1 i a) (K1 i a) where
+instance Eq a => GReplay (K1 i a) (K1 i' a) where
   greplay _ (K1 x) (K1 y)
     | x == y    = pure (K1 x)
     | otherwise = empty
 
-instance GReplay f g => GReplay (M1 i t f) (M1 i t g) where
+instance GReplay f g => GReplay (M1 i t f) (M1 i' t' g) where
   greplay f (M1 x) (M1 y) = M1 <$> greplay f x y
 
