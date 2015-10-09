@@ -7,7 +7,7 @@ Bug-Reports:            https://github.com/fizruk/replay-free/issues
 License:                BSD3
 License-File:           LICENSE
 Synopsis:               Logging and replaying interpretations of free structures.
--- Description:
+Description:            Please see README.md
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 Stability:              experimental
@@ -23,7 +23,6 @@ Library
   Build-Depends:        base >= 4 && < 5
                       , free >= 4.2
                       , transformers >= 0.3
-                      , comonad >= 4.0
 
 Source-Repository head
   Type:                 git

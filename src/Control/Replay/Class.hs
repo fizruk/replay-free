@@ -1,52 +1,55 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeOperators #-}
 module Control.Replay.Class where
 
 import Control.Applicative
-import Control.Monad.Free
-import Control.Comonad.Cofree
-import Data.Functor.Compose
-import Data.Functor.Constant
-import Data.Functor.Coproduct
-import Data.Functor.Identity
-import Data.Functor.Product
+
+import GHC.Generics
 
 -- | Capturing the notion that @g@ encodes all necessary information to replay @f@ action.
 class Replay f g where
   replay :: Alternative m => (a -> b -> m c) -> f a -> g b -> m (g c)
+  default replay :: (Alternative m, Generic1 f, Generic1 g, GReplay (Rep1 f) (Rep1 g)) => (a -> b -> m c) -> f a -> g b -> m (g c)
+  replay f x y = to1 <$> greplay f (from1 x) (from1 y)
 
 instance Replay ((->) a) ((,) a) where
   replay f g (x, y) = (,) x <$> f (g x) y
 
-instance Replay Identity Identity where
-  replay f (Identity x) (Identity y) = Identity <$> f x y
+class GReplay f g where
+  greplay :: Alternative m => (a -> b -> m c) -> f a -> g b -> m (g c)
 
-instance Eq m => Replay (Const m) (Const m) where
-  replay _ (Const x) (Const y)
-    | x == y    = pure $ Const x
+instance GReplay V1 V1 where
+  greplay _ = error "impossible"
+
+instance GReplay U1 U1 where
+  greplay _ U1 U1 = pure U1
+
+instance (GReplay f f', GReplay g g') => GReplay (f :+: g) (f' :+: g') where
+  greplay f (L1 x) (L1 y) = L1 <$> greplay f x y
+  greplay f (R1 x) (R1 y) = R1 <$> greplay f x y
+  greplay _ _ _ = empty
+
+instance (GReplay f f', GReplay g g') => GReplay (f :*: g) (f' :*: g') where
+  greplay f (x :*: y) (x' :*: y') = liftA2 (:*:) (greplay f x x') (greplay f y y')
+
+instance (Replay f f', GReplay g g') => GReplay (f :.: g) (f' :.: g') where
+  greplay f (Comp1 x) (Comp1 y) = Comp1 <$> replay (greplay f) x y
+
+instance GReplay Par1 Par1 where
+  greplay f (Par1 x) (Par1 y) = Par1 <$> f x y
+
+instance Replay f g => GReplay (Rec1 f) (Rec1 g) where
+  greplay f (Rec1 x) (Rec1 y) = Rec1 <$> replay f x y
+
+instance Eq a => GReplay (K1 i a) (K1 i' a) where
+  greplay _ (K1 x) (K1 y)
+    | x == y    = pure (K1 x)
     | otherwise = empty
 
-instance Eq m => Replay (Constant m) (Constant m) where
-  replay _ (Constant x) (Constant y)
-    | x == y    = pure $ Constant x
-    | otherwise = empty
-
-instance (Replay f g, Replay f' g') => Replay (Compose f f') (Compose g g') where
-  replay f (Compose a) (Compose b) = Compose <$> replay (replay f) a b
-
-instance (Replay f g, Replay f' g') => Replay (Product f f') (Product g g') where
-  replay f (Pair a b) (Pair x y) = Pair <$> replay f a x <*> replay f b y
-
-instance (Replay f g, Replay f' g') => Replay (Coproduct f f') (Coproduct g g') where
-  replay f (Coproduct (Left a))  (Coproduct (Left b))  = Coproduct . Left <$> replay f a b
-  replay f (Coproduct (Right a)) (Coproduct (Right b)) = Coproduct . Right <$> replay f a b
-  replay _ _ _ = empty
-
-instance Replay f g => Replay (Cofree f) (Cofree g) where
-  replay f (a :< as) (b :< bs) = (:<) <$> f a b <*> replay (replay f) as bs
-
-instance Replay f g => Replay (Free f) (Free g) where
-  replay k (Pure x) (Pure y) = Pure <$> k x y
-  replay k (Free f) (Free g) = Free <$> replay (replay k) f g
-  replay _ _ _ = empty
+instance GReplay f g => GReplay (M1 i t f) (M1 i' t' g) where
+  greplay f (M1 x) (M1 y) = M1 <$> greplay f x y
 
